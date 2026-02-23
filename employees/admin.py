@@ -1,0 +1,10 @@
+from django.contrib import admin
+
+from .models import Employee
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ("external_id", "full_name", "department", "is_active")
+    list_filter = ("department", "is_active")
+    search_fields = ("external_id", "full_name", "department")

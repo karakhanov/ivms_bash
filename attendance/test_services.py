@@ -13,7 +13,8 @@ def test_normal_workday():
     tz = timezone.get_current_timezone()
     employee = Employee.objects.create(
         external_id="E1",
-        full_name="Normal Worker",
+        first_name="Normal",
+        last_name="Worker",
         department="IT",
         is_active=True,
     )
@@ -51,7 +52,8 @@ def test_late_arrival():
     tz = timezone.get_current_timezone()
     employee = Employee.objects.create(
         external_id="E2",
-        full_name="Late Worker",
+        first_name="Late",
+        last_name="Worker",
         department="IT",
         is_active=True,
     )
@@ -90,7 +92,8 @@ def test_missing_out_event():
     tz = timezone.get_current_timezone()
     employee = Employee.objects.create(
         external_id="E3",
-        full_name="Forgot To Exit",
+        first_name="Forgot",
+        last_name="To Exit",
         department="IT",
         is_active=True,
     )
@@ -121,7 +124,8 @@ def test_overtime_case():
     tz = timezone.get_current_timezone()
     employee = Employee.objects.create(
         external_id="E4",
-        full_name="Overtime Worker",
+        first_name="Overtime",
+        last_name="Worker",
         department="IT",
         is_active=True,
     )

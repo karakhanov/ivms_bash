@@ -29,7 +29,8 @@ def test_webhook_creates_employee_and_log():
     assert response.status_code == status.HTTP_201_CREATED
 
     employee = Employee.objects.get(external_id="EXT-1")
-    assert employee.full_name == "Webhook User"
+    assert employee.first_name == "User"
+    assert employee.last_name == "Webhook"
 
     log = AttendanceLog.objects.get(employee=employee)
     assert log.device_id == "D1"

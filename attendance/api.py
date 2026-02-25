@@ -34,9 +34,27 @@ class IvmsEventSerializer(serializers.Serializer):
         external_id = validated_data.pop("external_id")
         full_name = validated_data.pop("full_name")
 
+        # Roughly split full name into last / first / middle
+        name_parts = full_name.split()
+        first_name = ""
+        last_name = ""
+        middle_name = ""
+        if len(name_parts) == 1:
+            first_name = name_parts[0]
+        elif len(name_parts) >= 2:
+            last_name = name_parts[0]
+            first_name = name_parts[1]
+            if len(name_parts) > 2:
+                middle_name = " ".join(name_parts[2:])
+
         employee, _ = Employee.objects.update_or_create(
             external_id=external_id,
-            defaults={"full_name": full_name, "is_active": True},
+            defaults={
+                "first_name": first_name,
+                "last_name": last_name,
+                "middle_name": middle_name,
+                "is_active": True,
+            },
         )
 
         # Prevent duplicates: same employee, device, event_type and exact event_time
@@ -78,9 +96,15 @@ class DailyAttendanceSummarySerializer(serializers.ModelSerializer):
     employee_external_id = serializers.CharField(
         source="employee.external_id", read_only=True
     )
-    employee_full_name = serializers.CharField(
-        source="employee.full_name", read_only=True
-    )
+    employee_full_name = serializers.SerializerMethodField(read_only=True)
+
+    def get_employee_full_name(self, obj: DailyAttendanceSummary) -> str:
+        parts = [
+            getattr(obj.employee, "last_name", ""),
+            getattr(obj.employee, "first_name", ""),
+            getattr(obj.employee, "middle_name", ""),
+        ]
+        return " ".join(p for p in parts if p)
 
     class Meta:
         model = DailyAttendanceSummary

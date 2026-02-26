@@ -1,18 +1,30 @@
 from datetime import datetime
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework.authtoken.models import Token
 
 from attendance.models import AttendanceLog
 from .models import Department, Employee, Position
 
+User = get_user_model()
+
+
+def _api_client_with_token():
+    user = User.objects.create_user(username="apiuser", password="testpass")
+    token, _ = Token.objects.get_or_create(user=user)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+    return client
+
 
 @pytest.mark.django_db
 def test_employee_list_returns_last_entry_and_status_and_department():
-    client = APIClient()
+    client = _api_client_with_token()
     url = reverse("employee-list")
 
     tz = timezone.get_current_timezone()
@@ -77,7 +89,7 @@ def test_employee_list_returns_last_entry_and_status_and_department():
 
 @pytest.mark.django_db
 def test_employee_list_filters_by_department_and_active_and_search():
-    client = APIClient()
+    client = _api_client_with_token()
     url = reverse("employee-list")
 
     dep1 = Department.objects.create(name="IT", code="it")

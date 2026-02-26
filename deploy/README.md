@@ -38,7 +38,15 @@
 
 - URL: `http://<SERVER_IP>/api/ivms/events/`
 
-### 2.3 Сбор статики
+### 2.3 Аутентификация API
+
+API (дашборд, сотрудники, посещаемость) защищён **Token Authentication**. Вебхук терминалов (`/api/ivms/events/`) вызывается без токена.
+
+- Создайте пользователя Django: `python3 manage.py createsuperuser` или через админку.
+- Токен для фронта: запрос `POST /api/auth/token/` с телом `{"username": "...", "password": "..."}` возвращает `{"token": "..."}`. Либо создайте токен в админке: **Auth Token** → Add (User + автоматический ключ).
+- В запросах к API передавайте заголовок: `Authorization: Token <токен>`.
+
+### 2.4 Сбор статики
 
 ```bash
 python3 manage.py collectstatic --noinput

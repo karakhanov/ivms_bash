@@ -1,13 +1,26 @@
 from datetime import datetime, time
 
 import pytest
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
+from rest_framework.authtoken.models import Token
 
 from employees.models import Department, Employee
 from .models import AttendanceLog, DailyAttendanceSummary
+
+User = get_user_model()
+
+
+def _api_client_with_token():
+    """Client authenticated with a token (for protected API)."""
+    user = User.objects.create_user(username="apiuser", password="testpass")
+    token, _ = Token.objects.get_or_create(user=user)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+    return client
 
 
 def _make_access_event_payload(
@@ -119,9 +132,16 @@ def test_ivms_unknown_event_is_ignored():
 
 
 @pytest.mark.django_db
-def test_dashboard_summary_counts_and_recent_activity():
+def test_dashboard_requires_auth():
     client = APIClient()
+    url = reverse("dashboard-summary")
+    response = client.get(url)
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
+
+@pytest.mark.django_db
+def test_dashboard_summary_counts_and_recent_activity():
+    client = _api_client_with_token()
     today = timezone.localdate()
     tz = timezone.get_current_timezone()
 
@@ -178,7 +198,7 @@ def test_dashboard_summary_counts_and_recent_activity():
 
 @pytest.mark.django_db
 def test_daily_attendance_summaries_filter_by_date_and_department_ref():
-    client = APIClient()
+    client = _api_client_with_token()
     today = timezone.localdate()
     tz = timezone.get_current_timezone()
 

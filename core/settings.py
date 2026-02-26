@@ -31,11 +31,10 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "192.168.1.176",
-    # Добавьте ваш домен, например:
-    # "api.ваш-домен.ru",
-    # ".ваш-домен.ru",  # точка в начале = все поддомены
+    "144.124.193.167",
+    "bashkentadmin.uz",
+    "www.bashkentadmin.uz",
 ]
-
 
 # Application definition
 
@@ -46,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'rest_framework.authtoken',
     "employees",
@@ -64,6 +64,7 @@ REST_FRAMEWORK = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # сразу после SessionMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -148,6 +149,19 @@ STATIC_URL = 'static/'
 # Media (user-uploaded files, employee photos)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# CORS: с какого домена/порта фронт может вызывать API (браузер иначе блокирует)
+CORS_ALLOWED_ORIGINS = [
+    "https://bashkentadmin.uz",
+    "http://bashkentadmin.uz",
+    "https://www.bashkentadmin.uz",
+    "http://www.bashkentadmin.uz",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+# Если фронт на другом домене — добавь его сюда или задай CORS_ALLOWED_ORIGINS через env
 
 # Hikvision: push employee to terminal(s). Single device from env or HIKVISION_DEVICES JSON list.
 HIKVISION_DEVICE_URL = os.getenv("HIKVISION_DEVICE_URL", "")

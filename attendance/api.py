@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any, Dict, List
+import json
 
+from email.parser import BytesParser
+from email.policy import default as email_default_policy
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers, status, viewsets
@@ -11,6 +14,68 @@ from rest_framework.views import APIView
 
 from employees.models import Employee
 from .models import AttendanceLog, DailyAttendanceSummary
+from .services import AttendanceCalculationService
+
+
+def _normalize_hikvision_event(json_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Normalize a single Hikvision JSON event (AccessControllerEvent)
+    to the schema expected by IvmsEventSerializer.
+    """
+    access_event = json_payload.get("AccessControllerEvent") or {}
+
+    external_id = (
+        access_event.get("employeeNoString")
+        or access_event.get("employeeNo")
+        or access_event.get("cardNo")
+        or access_event.get("verifyNo")
+        or access_event.get("serialNo")
+    )
+    if external_id is None:
+        external_id = str(access_event.get("serialNo", "unknown"))
+
+    device_id = json_payload.get("ipAddress") or access_event.get("deviceName") or "unknown"
+    event_time = json_payload.get("dateTime")
+
+    attendance_status = access_event.get("attendanceStatus")
+    if attendance_status in {"checkIn", "onDuty", "signIn"}:
+        event_type = AttendanceLog.EventType.IN
+    elif attendance_status in {"checkOut", "offDuty", "signOut"}:
+        event_type = AttendanceLog.EventType.OUT
+    else:
+        event_type = AttendanceLog.EventType.IN
+
+    full_name = access_event.get("name", "") or ""
+
+    return {
+        "external_id": str(external_id),
+        "full_name": full_name,
+        "device_id": device_id,
+        "event_type": event_type,
+        "event_time": event_time,
+        "confidence_score": 1.0,
+    }
+
+
+def parse_hikvision_multipart(body: bytes, content_type: str) -> Dict[str, Any]:
+    """
+    Parse multipart payload from Hikvision terminal and normalize it
+    to the schema expected by IvmsEventSerializer.
+    """
+    header = f"Content-Type: {content_type}\r\n\r\n".encode("utf-8")
+    message = BytesParser(policy=email_default_policy).parsebytes(header + body)
+
+    json_payload: Dict[str, Any] | None = None
+
+    for part in message.iter_parts():
+        if part.get_content_type() == "application/json":
+            json_payload = json.loads(part.get_content())
+            break
+
+    if not json_payload:
+        raise ValueError("JSON part not found in multipart payload.")
+
+    return _normalize_hikvision_event(json_payload)
 
 
 class IvmsEventSerializer(serializers.Serializer):
@@ -28,6 +93,36 @@ class IvmsEventSerializer(serializers.Serializer):
         if timezone.is_naive(value):
             value = timezone.make_aware(value, timezone.get_current_timezone())
         return value
+
+    def _update_daily_summary(self, employee: Employee, log: AttendanceLog) -> None:
+        """
+        Recalculate and upsert DailyAttendanceSummary for the log's day.
+        """
+        local_dt = timezone.localtime(log.event_time)
+        day = local_dt.date()
+
+        day_logs = AttendanceLog.objects.filter(
+            employee=employee, event_time__date=day
+        ).order_by("event_time")
+
+        summaries = AttendanceCalculationService.calculate_daily_attendance(day_logs)
+        employee_data = summaries.get(employee.id, {})
+        summary_data = employee_data.get(day)
+
+        if not summary_data:
+            return
+
+        DailyAttendanceSummary.objects.update_or_create(
+            employee=employee,
+            date=day,
+            defaults={
+                "first_entry": summary_data["first_in"],
+                "last_exit": summary_data["last_out"],
+                "worked_hours": summary_data["worked_hours"],
+                "lateness_minutes": summary_data["lateness_minutes"],
+                "overtime_minutes": summary_data["overtime_minutes"],
+            },
+        )
 
     @transaction.atomic
     def create(self, validated_data: Dict[str, Any]) -> AttendanceLog:
@@ -68,7 +163,9 @@ class IvmsEventSerializer(serializers.Serializer):
                 {"non_field_errors": ["Duplicate attendance event detected."]}
             )
 
-        return AttendanceLog.objects.create(employee=employee, **validated_data)
+        log = AttendanceLog.objects.create(employee=employee, **validated_data)
+        self._update_daily_summary(employee, log)
+        return log
 
 
 class IvmsEventAPIView(APIView):
@@ -77,9 +174,51 @@ class IvmsEventAPIView(APIView):
     """
 
     def post(self, request, *args, **kwargs) -> Response:
-        serializer = IvmsEventSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        log = serializer.save()
+        content_type = request.META.get("CONTENT_TYPE", "")
+        # print("IVMS RAW BODY:", request.body[:500])
+        if content_type.startswith("multipart/"):
+            try:
+                payload = parse_hikvision_multipart(request.body, content_type)
+            except ValueError as exc:
+                return Response(
+                    {"status": "ignored", "reason": str(exc)},
+                    status=status.HTTP_200_OK,
+                )
+            serializer = IvmsEventSerializer(data=payload)
+        else:
+            try:
+                raw_body = request.body.decode("utf-8") if request.body else ""
+                raw_json = json.loads(raw_body or "{}")
+            except json.JSONDecodeError:
+                return Response(
+                    {"status": "ignored", "reason": "invalid json"},
+                    status=status.HTTP_200_OK,
+                )
+
+            event_type = raw_json.get("eventType")
+
+            if event_type == "heartBeat":
+                return Response({"status": "ok"}, status=status.HTTP_200_OK)
+
+            if event_type == "AccessControllerEvent":
+                payload = _normalize_hikvision_event(raw_json)
+                serializer = IvmsEventSerializer(data=payload)
+            else:
+                return Response({"status": "ignored"}, status=status.HTTP_200_OK)
+
+        if not serializer.is_valid():
+            return Response(
+                {"status": "ignored", "errors": serializer.errors},
+                status=status.HTTP_200_OK,
+            )
+
+        try:
+            log = serializer.save()
+        except serializers.ValidationError:
+            return Response(
+                {"status": "ignored", "reason": "duplicate"},
+                status=status.HTTP_200_OK,
+            )
 
         return Response(
             {
@@ -92,11 +231,129 @@ class IvmsEventAPIView(APIView):
         )
 
 
+class DashboardSummaryAPIView(APIView):
+    """
+    Lightweight aggregate endpoint for the main dashboard.
+    """
+
+    def get(self, request, *args, **kwargs) -> Response:
+        today = timezone.localdate()
+
+        employees_qs = Employee.objects.filter(is_active=True)
+        total_employees = employees_qs.count()
+
+        today_summaries = DailyAttendanceSummary.objects.filter(
+            date=today
+        ).select_related("employee")
+
+        present_count = today_summaries.count()
+        late_count = today_summaries.filter(lateness_minutes__gt=0).count()
+
+        # Placeholder: no vacation model yet
+        on_leave_count = 0
+
+        absent_count = max(total_employees - present_count - on_leave_count, 0)
+
+        # Recent activity (today's logs)
+        logs: List[AttendanceLog] = list(
+            AttendanceLog.objects.filter(event_time__date=today)
+            .select_related("employee")
+            .order_by("-event_time")[:20]
+        )
+
+        recent_activity = []
+        work_start = AttendanceCalculationService.WORK_START
+
+        for log in logs:
+            local_dt = timezone.localtime(log.event_time)
+            scheduled_start = timezone.make_aware(
+                timezone.datetime.combine(today, work_start),
+                timezone.get_current_timezone(),
+            )
+            is_late = log.event_type == AttendanceLog.EventType.IN and local_dt > scheduled_start
+
+            employee = log.employee
+            full_name = " ".join(
+                p
+                for p in [
+                    getattr(employee, "last_name", ""),
+                    getattr(employee, "first_name", ""),
+                    getattr(employee, "middle_name", ""),
+                ]
+                if p
+            )
+
+            event_type_display = "Выход" if log.event_type == AttendanceLog.EventType.OUT else "Вход"
+            status_display = "Завершено" if log.event_type == AttendanceLog.EventType.OUT else ("Опоздал" if is_late else "Вовремя")
+
+            photo_url = None
+            photo = getattr(employee, "photo", None)
+            if photo:
+                try:
+                    photo_url = photo.url
+                except ValueError:
+                    photo_url = None
+
+            recent_activity.append(
+                {
+                    "employee_id": employee.id,
+                    "employee_external_id": employee.external_id,
+                    "employee_full_name": full_name,
+                    "employee_photo_url": photo_url,
+                    "device_id": log.device_id,
+                    "event_type": log.event_type,
+                    "event_type_display": event_type_display,
+                    "event_time": local_dt.isoformat(),
+                    "time_display": local_dt.strftime("%H:%M"),
+                    "status": status_display,
+                }
+            )
+
+        data = {
+            "summary": {
+                "total": total_employees,
+                "present": present_count,
+                "absent": absent_count,
+                "late": late_count,
+                "on_leave": on_leave_count,
+                "devices_online": {"online": 0, "total": 0},
+            },
+            "recent_activity": recent_activity,
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
 class DailyAttendanceSummarySerializer(serializers.ModelSerializer):
     employee_external_id = serializers.CharField(
         source="employee.external_id", read_only=True
     )
     employee_full_name = serializers.SerializerMethodField(read_only=True)
+    employee_department = serializers.SerializerMethodField(read_only=True)
+    employee_position = serializers.SerializerMethodField(read_only=True)
+    employee_photo_url = serializers.SerializerMethodField(read_only=True)
+    status = serializers.SerializerMethodField(read_only=True)
+
+    def get_employee_department(self, obj: DailyAttendanceSummary) -> str:
+        emp = obj.employee
+        if getattr(emp, "department_ref", None):
+            return emp.department_ref.name or ""
+        return getattr(emp, "department", "") or ""
+
+    def get_employee_position(self, obj: DailyAttendanceSummary) -> str:
+        emp = obj.employee
+        if getattr(emp, "position_ref", None):
+            return emp.position_ref.name or ""
+        return getattr(emp, "position", "") or ""
+
+    def get_employee_photo_url(self, obj: DailyAttendanceSummary) -> str | None:
+        emp = obj.employee
+        photo = getattr(emp, "photo", None)
+        if photo:
+            try:
+                return photo.url
+            except ValueError:
+                return None
+        return None
 
     def get_employee_full_name(self, obj: DailyAttendanceSummary) -> str:
         parts = [
@@ -106,6 +363,25 @@ class DailyAttendanceSummarySerializer(serializers.ModelSerializer):
         ]
         return " ".join(p for p in parts if p)
 
+    def get_status(self, obj: DailyAttendanceSummary) -> str:
+        """
+        Human readable daily status for the employee.
+        """
+        today = timezone.localdate()
+
+        if not obj.first_entry:
+            return "Отсутствует"
+
+        if obj.date == today:
+            now = timezone.now()
+            if not obj.last_exit or obj.last_exit > now:
+                return "Присутствует"
+
+        if obj.lateness_minutes > 0:
+            return "Опоздал"
+
+        return "Присутствовал"
+
     class Meta:
         model = DailyAttendanceSummary
         fields = [
@@ -113,12 +389,16 @@ class DailyAttendanceSummarySerializer(serializers.ModelSerializer):
             "employee",
             "employee_external_id",
             "employee_full_name",
+            "employee_department",
+            "employee_position",
+            "employee_photo_url",
             "date",
             "first_entry",
             "last_exit",
             "worked_hours",
             "lateness_minutes",
             "overtime_minutes",
+            "status",
         ]
         read_only_fields = [
             "id",
@@ -152,21 +432,34 @@ class DailyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     default_ordering = ("-date", "employee_id")
 
     def get_queryset(self):
-        qs = DailyAttendanceSummary.objects.select_related("employee")
+        qs = DailyAttendanceSummary.objects.select_related(
+            "employee", "employee__department_ref", "employee__position_ref"
+        )
 
         params = self.request.query_params
+
+        date = params.get("date")
+        if date:
+            qs = qs.filter(date=date)
+        else:
+            date_from = params.get("date_from")
+            if date_from:
+                qs = qs.filter(date__gte=date_from)
+            date_to = params.get("date_to")
+            if date_to:
+                qs = qs.filter(date__lte=date_to)
+
+        department = params.get("department")
+        if department:
+            qs = qs.filter(employee__department=department)
+
+        department_ref_id = params.get("department_ref_id")
+        if department_ref_id:
+            qs = qs.filter(employee__department_ref_id=department_ref_id)
 
         employee_id = params.get("employee_id")
         if employee_id:
             qs = qs.filter(employee_id=employee_id)
-
-        date_from = params.get("date_from")
-        if date_from:
-            qs = qs.filter(date__gte=date_from)
-
-        date_to = params.get("date_to")
-        if date_to:
-            qs = qs.filter(date__lte=date_to)
 
         ordering_param = params.get("ordering")
         if ordering_param:

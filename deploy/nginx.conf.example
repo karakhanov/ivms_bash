@@ -1,0 +1,44 @@
+# Пример конфига Nginx для ivms_backend под доменом.
+# Скопируйте в /etc/nginx/sites-available/ivms и отредактируйте:
+#   - server_name (ваш домен);
+#   - пути к статике/медиа при необходимости.
+# Затем: sudo ln -s /etc/nginx/sites-available/ivms /etc/nginx/sites-enabled/
+#        sudo nginx -t && sudo systemctl reload nginx
+
+upstream ivms_backend {
+    server 127.0.0.1:8000;
+}
+
+server {
+    listen 80;
+    server_name api.ваш-домен.ru;   # замените на ваш домен
+
+    client_max_body_size 10M;
+
+    location /static/ {
+        alias /var/www/ivms_backend/static/;
+    }
+
+    location /media/ {
+        alias /var/www/ivms_backend/media/;
+    }
+
+    location / {
+        proxy_pass http://ivms_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}
+
+# После настройки HTTPS (certbot):
+# server {
+#     listen 443 ssl;
+#     server_name api.ваш-домен.ru;
+#     ssl_certificate /etc/letsencrypt/live/api.ваш-домен.ru/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/api.ваш-домен.ru/privkey.pem;
+#     # ... те же location, что выше ...
+# }

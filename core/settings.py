@@ -26,7 +26,15 @@ SECRET_KEY = 'django-insecure-5i$!l$^ni4q_gy*-k&4^c+3jl6(82_^wttbea__299dlztopq)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "95.46.96.135",
+    "localhost",
+    "127.0.0.1",
+    "192.168.1.176",
+    # Добавьте ваш домен, например:
+    # "api.ваш-домен.ru",
+    # ".ваш-домен.ru",  # точка в начале = все поддомены
+]
 
 
 # Application definition
@@ -90,6 +98,9 @@ DATABASES = {
     },
 }
 
+# Default primary key type for models without explicit primary_key=True
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
@@ -115,14 +126,29 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Tashkent'
 
 USE_I18N = True
 
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.0/howto/static-files/
-
 STATIC_URL = 'static/'
+
+# Media (user-uploaded files, employee photos)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Hikvision: push employee to terminal(s). Single device from env or HIKVISION_DEVICES JSON list.
+HIKVISION_DEVICE_URL = os.getenv("HIKVISION_DEVICE_URL", "")
+HIKVISION_USERNAME = os.getenv("HIKVISION_USERNAME", "")
+HIKVISION_PASSWORD = os.getenv("HIKVISION_PASSWORD", "")
+# Optional: HIKVISION_DEVICES env = JSON array [{"base_url": "http://...", "username": "...", "password": "..."}]
+if os.getenv("HIKVISION_DEVICES"):
+    import json as _json
+    try:
+        HIKVISION_DEVICES = _json.loads(os.getenv("HIKVISION_DEVICES", "[]"))
+    except Exception:
+        HIKVISION_DEVICES = []
+else:
+    HIKVISION_DEVICES = None  # use single device from URL/username/password above

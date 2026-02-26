@@ -1,0 +1,23 @@
+# Пример конфига Gunicorn. Запуск:
+# gunicorn -c deploy/gunicorn.conf.example core.wsgi:application
+# Или скопируйте в deploy/gunicorn.conf и подставьте свои пути.
+
+bind = "127.0.0.1:8000"
+workers = 4
+worker_class = "sync"
+worker_connections = 1000
+timeout = 60
+keepalive = 5
+
+# Путь к проекту (директория с manage.py)
+chdir = "/var/www/ivms_backend"
+pythonpath = "/var/www/ivms_backend"
+
+# Логи
+accesslog = "/var/log/ivms_backend/access.log"
+errorlog = "/var/log/ivms_backend/error.log"
+loglevel = "info"
+
+# Процесс
+daemon = False  # для systemd оставьте False
+pidfile = "/var/run/ivms_backend/gunicorn.pid"

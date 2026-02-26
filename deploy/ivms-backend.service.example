@@ -1,0 +1,29 @@
+# Systemd unit для ivms_backend (Gunicorn).
+# Скопируйте в /etc/systemd/system/ivms-backend.service:
+#   sudo cp deploy/ivms-backend.service.example /etc/systemd/system/ivms-backend.service
+# Отредактируйте User, Group, WorkingDirectory и пути.
+# Затем:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable ivms-backend
+#   sudo systemctl start ivms-backend
+
+[Unit]
+Description=IVMS Backend (Gunicorn)
+After=network.target postgresql.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ivms_backend
+Environment="PATH=/var/www/ivms_backend/venv/bin"
+ExecStart=/var/www/ivms_backend/venv/bin/gunicorn \
+    --workers 4 \
+    --bind 127.0.0.1:8000 \
+    --timeout 60 \
+    core.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

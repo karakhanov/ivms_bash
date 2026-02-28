@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import AttendanceLog, DailyAttendanceSummary
+from .models import AttendanceLog, DailyAttendanceSummary, Device
+
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ("name", "device_id", "address", "mac_address", "direction", "is_active", "last_seen")
+    list_filter = ("direction", "is_active")
+    search_fields = ("name", "device_id", "address", "mac_address")
+    readonly_fields = ("last_seen", "created_at", "updated_at")
 
 
 @admin.register(AttendanceLog)

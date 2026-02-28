@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
 import json
+from datetime import timedelta
+from typing import Any, Dict, List
 
 from email.parser import BytesParser
 from email.policy import default as email_default_policy
@@ -14,7 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from employees.models import Employee
-from .models import AttendanceLog, DailyAttendanceSummary
+from .models import AttendanceLog, DailyAttendanceSummary, Device
 from .services import AttendanceCalculationService
 
 
@@ -223,6 +224,18 @@ class IvmsEventAPIView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        device_id_raw = log.device_id
+        device, _ = Device.objects.get_or_create(
+            device_id=device_id_raw,
+            defaults={
+                "name": device_id_raw,
+                "address": device_id_raw,
+                "is_active": True,
+            },
+        )
+        device.last_seen = log.event_time
+        device.save(update_fields=["last_seen"])
+
         return Response(
             {
                 "id": log.id,
@@ -256,6 +269,12 @@ class DashboardSummaryAPIView(APIView):
         on_leave_count = 0
 
         absent_count = max(total_employees - present_count - on_leave_count, 0)
+
+        # Устройства: всего активных и «онлайн» (были события за последние 15 мин)
+        devices_qs = Device.objects.filter(is_active=True)
+        devices_total = devices_qs.count()
+        threshold = timezone.now() - timedelta(minutes=15)
+        devices_online = devices_qs.filter(last_seen__gte=threshold).count()
 
         # Recent activity (today's logs)
         logs: List[AttendanceLog] = list(
@@ -319,7 +338,7 @@ class DashboardSummaryAPIView(APIView):
                 "absent": absent_count,
                 "late": late_count,
                 "on_leave": on_leave_count,
-                "devices_online": {"online": 0, "total": 0},
+                "devices_online": {"online": devices_online, "total": devices_total},
             },
             "recent_activity": recent_activity,
         }
@@ -479,5 +498,34 @@ class DailyAttendanceSummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 return qs
 
         return qs.order_by(*self.default_ordering)
+
+
+class DeviceSerializer(serializers.ModelSerializer):
+    direction_display = serializers.CharField(source="get_direction_display", read_only=True)
+
+    class Meta:
+        model = Device
+        fields = [
+            "id",
+            "name",
+            "address",
+            "mac_address",
+            "device_id",
+            "direction",
+            "direction_display",
+            "is_active",
+            "last_seen",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class DeviceViewSet(viewsets.ReadOnlyModelViewSet):
+    """Список устройств (терминалов): название, адрес, направление вход/выход, last_seen."""
+
+    queryset = Device.objects.all().order_by("name")
+    serializer_class = DeviceSerializer
 
 

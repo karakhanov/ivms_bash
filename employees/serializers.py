@@ -147,7 +147,11 @@ class EmployeeDetailSerializer(EmployeeListSerializer):
             date__lt=end_exclusive,
         ).order_by("-date")
 
-        serializer = DailyAttendanceSummarySerializer(
-            qs, many=True, context=self.context
-        )
+        serializer = DailyAttendanceSummarySerializer(qs, many=True, context=self.context)
         return serializer.data
+
+    class Meta(EmployeeListSerializer.Meta):
+        fields = EmployeeListSerializer.Meta.fields + [
+            "month_stats",
+            "attendance_history",
+        ]

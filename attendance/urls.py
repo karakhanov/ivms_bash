@@ -3,9 +3,15 @@ from __future__ import annotations
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .api import DailyAttendanceSummaryViewSet, IvmsEventAPIView, DashboardSummaryAPIView
+from .api import (
+    DailyAttendanceSummaryViewSet,
+    DeviceViewSet,
+    IvmsEventAPIView,
+    DashboardSummaryAPIView,
+)
 
 router = DefaultRouter()
+router.register(r"devices", DeviceViewSet, basename="device")
 router.register(
     r"daily-attendance-summaries",
     DailyAttendanceSummaryViewSet,

@@ -3,6 +3,47 @@ from django.db import models
 from employees.models import Employee
 
 
+class Device(models.Model):
+    """
+    Терминал/устройство контроля доступа (например Hikvision).
+    device_id совпадает с тем, что приходит в событиях (AttendanceLog.device_id).
+    """
+
+    class Direction(models.TextChoices):
+        ENTRANCE = "entrance", "Вход"
+        EXIT = "exit", "Выход"
+        BOTH = "both", "Вход и выход"
+
+    name = models.CharField("Название", max_length=128)
+    address = models.CharField("Адрес (IP или URL)", max_length=255, blank=True)
+    mac_address = models.CharField("MAC-адрес", max_length=17, blank=True)
+    device_id = models.CharField(
+        "ID устройства в событиях",
+        max_length=64,
+        unique=True,
+        help_text="Строка из событий (ipAddress, deviceName и т.п.)",
+    )
+    direction = models.CharField(
+        "Направление",
+        max_length=16,
+        choices=Direction.choices,
+        default=Direction.BOTH,
+    )
+    is_active = models.BooleanField("Активно", default=True)
+    last_seen = models.DateTimeField("Последнее событие", null=True, blank=True)
+    notes = models.TextField("Примечание", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Устройство"
+        verbose_name_plural = "Устройства"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.device_id})"
+
+
 class AttendanceLog(models.Model):
     class EventType(models.TextChoices):
         IN = "IN", "IN"

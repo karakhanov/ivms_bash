@@ -144,7 +144,8 @@ USE_I18N = True
 USE_TZ = True
 
 
-STATIC_URL = 'static/'
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "static"
 
 # Media (user-uploaded files, employee photos)
 MEDIA_URL = '/media/'

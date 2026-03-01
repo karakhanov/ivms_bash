@@ -232,10 +232,10 @@ class IvmsEventAPIView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        device_id_raw = log.device_id
+        # IP устройства берём из запроса (реальный IP терминала), не из тела события — там бывает неверно
         client_ip = _get_client_ip(request)
+        device_id_for_record = client_ip if client_ip else log.device_id
 
-        # Сначала ищем устройство по реальному IP запроса (если вы задали правильный IP в address)
         device = None
         if client_ip:
             device = (
@@ -243,7 +243,6 @@ class IvmsEventAPIView(APIView):
                 or Device.objects.filter(device_id=client_ip).first()
             )
         if device:
-            # Нормализуем: в address — реальный IP; в device_id — тоже, если нет конфликта
             device.address = client_ip
             device.last_seen = log.event_time
             if not Device.objects.filter(device_id=client_ip).exclude(pk=device.pk).exists():
@@ -252,11 +251,12 @@ class IvmsEventAPIView(APIView):
             else:
                 device.save(update_fields=["address", "last_seen"])
         else:
+            # Новое устройство — создаём с IP из запроса, чтобы в базе был правильный адрес
             device, _ = Device.objects.get_or_create(
-                device_id=device_id_raw,
+                device_id=device_id_for_record,
                 defaults={
-                    "name": device_id_raw,
-                    "address": device_id_raw,
+                    "name": device_id_for_record,
+                    "address": device_id_for_record,
                     "is_active": True,
                 },
             )

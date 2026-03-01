@@ -15,7 +15,12 @@ class Device(models.Model):
         BOTH = "both", "Вход и выход"
 
     name = models.CharField("Название", max_length=128)
-    address = models.CharField("Адрес (IP или URL)", max_length=255, blank=True)
+    address = models.CharField(
+        "Адрес (IP или URL)",
+        max_length=255,
+        blank=True,
+        help_text="Реальный IP устройства. По нему устройство сопоставляется с запросом при приходе событий.",
+    )
     mac_address = models.CharField("MAC-адрес", max_length=17, blank=True)
     device_id = models.CharField(
         "ID устройства в событиях",

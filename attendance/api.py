@@ -19,6 +19,14 @@ from .models import AttendanceLog, DailyAttendanceSummary, Device
 from .services import AttendanceCalculationService
 
 
+def _get_client_ip(request) -> str | None:
+    """IP клиента: за прокси (X-Forwarded-For) или REMOTE_ADDR."""
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
+
 def _normalize_hikvision_event(json_payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Normalize a single Hikvision JSON event (AccessControllerEvent)
@@ -225,16 +233,35 @@ class IvmsEventAPIView(APIView):
             )
 
         device_id_raw = log.device_id
-        device, _ = Device.objects.get_or_create(
-            device_id=device_id_raw,
-            defaults={
-                "name": device_id_raw,
-                "address": device_id_raw,
-                "is_active": True,
-            },
-        )
-        device.last_seen = log.event_time
-        device.save(update_fields=["last_seen"])
+        client_ip = _get_client_ip(request)
+
+        # Сначала ищем устройство по реальному IP запроса (если вы задали правильный IP в address)
+        device = None
+        if client_ip:
+            device = (
+                Device.objects.filter(address=client_ip).first()
+                or Device.objects.filter(device_id=client_ip).first()
+            )
+        if device:
+            # Нормализуем: в address — реальный IP; в device_id — тоже, если нет конфликта
+            device.address = client_ip
+            device.last_seen = log.event_time
+            if not Device.objects.filter(device_id=client_ip).exclude(pk=device.pk).exists():
+                device.device_id = client_ip
+                device.save(update_fields=["device_id", "address", "last_seen"])
+            else:
+                device.save(update_fields=["address", "last_seen"])
+        else:
+            device, _ = Device.objects.get_or_create(
+                device_id=device_id_raw,
+                defaults={
+                    "name": device_id_raw,
+                    "address": device_id_raw,
+                    "is_active": True,
+                },
+            )
+            device.last_seen = log.event_time
+            device.save(update_fields=["last_seen"])
 
         return Response(
             {

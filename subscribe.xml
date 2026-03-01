@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SubscribeEventRequest version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+  <SubscribeEventList>
+    <SubscribeEvent>
+      <EventType>AccessControllerEvent</EventType>
+      <eventMode>all</eventMode>
+      <HttpHostNotification>
+        <url>http://192.168.1.176:8000/api/ivms/events/</url>
+        <heartbeat>10</heartbeat>
+      </HttpHostNotification>
+    </SubscribeEvent>
+  </SubscribeEventList>
+</SubscribeEventRequest>

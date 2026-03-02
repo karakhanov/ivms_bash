@@ -152,16 +152,15 @@ class IvmsEventSerializer(serializers.Serializer):
             first_name = name_parts[1]
             if len(name_parts) > 2:
                 middle_name = " ".join(name_parts[2:])
-
-        employee, _ = Employee.objects.update_or_create(
-            external_id=external_id,
-            defaults={
-                "first_name": first_name,
-                "last_name": last_name,
-                "middle_name": middle_name,
-                "is_active": True,
-            },
-        )
+        # Не создаём новых сотрудников из событий терминала.
+        # Сотрудники должны быть заведены заранее (импорт/админка),
+        # иначе событие игнорируем.
+        try:
+            employee = Employee.objects.get(external_id=external_id)
+        except Employee.DoesNotExist:
+            raise serializers.ValidationError(
+                {"non_field_errors": ["Employee with this external_id does not exist."]}
+            )
 
         # Prevent duplicates: same employee, device, event_type and exact event_time
         if AttendanceLog.objects.filter(

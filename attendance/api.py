@@ -242,6 +242,7 @@ class IvmsEventAPIView(APIView):
                 or Device.objects.filter(device_id=client_ip).first()
             )
         if device:
+            # Обновляем только IP/ID и last_seen, "Название" (name) не трогаем.
             device.address = client_ip
             device.last_seen = log.event_time
             if not Device.objects.filter(device_id=client_ip).exclude(pk=device.pk).exists():
@@ -250,11 +251,12 @@ class IvmsEventAPIView(APIView):
             else:
                 device.save(update_fields=["address", "last_seen"])
         else:
-            # Новое устройство — создаём с IP из запроса, чтобы в базе был правильный адрес
+            # Новое устройство — создаём с IP из запроса,
+            # а в поле "Название" кладём исходный идентификатор из события (log.device_id).
             device, _ = Device.objects.get_or_create(
                 device_id=device_id_for_record,
                 defaults={
-                    "name": device_id_for_record,
+                    "name": log.device_id or device_id_for_record,
                     "address": device_id_for_record,
                     "is_active": True,
                 },

@@ -114,8 +114,19 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Нет данных об устройствах. Запустите на хосте в той же подсети."))
             return
 
+        # Фильтруем только наши терминалы Hikvision: MAC начинается с 88:de:39
+        HIK_MAC_PREFIXES = ("88:de:39", "88:DE:39")
+        filtered_pairs = [(ip, mac) for ip, mac in pairs if mac.startswith(HIK_MAC_PREFIXES)]
+        skipped = len(pairs) - len(filtered_pairs)
+        if skipped:
+            self.stdout.write(self.style.WARNING(f"Пропущено не-Hikvision устройств (MAC != 88:de:39*): {skipped}"))
+
+        if not filtered_pairs:
+            self.stdout.write(self.style.WARNING("Не найдено устройств с MAC, начинающимся на 88:de:39."))
+            return
+
         updated = 0
-        for ip, mac in pairs:
+        for ip, mac in filtered_pairs:
             # Обновляем по address или device_id (часто это IP из событий)
             qs = Device.objects.filter(Q(address=ip) | Q(device_id=ip))
             if qs.exists():

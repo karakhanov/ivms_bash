@@ -92,12 +92,15 @@ class Command(BaseCommand):
                     text=True,
                     timeout=60,
                 )
-                if result.returncode == 0:
+                if result.stdout:
+                    # Даже если arp-scan вернул код != 0, но вывел что-то в stdout — пробуем это распарсить.
                     pairs = parse_arp_scan(result.stdout)
-                    self.stdout.write(f"arp-scan: найдено {len(pairs)} записей.")
-                else:
+                    self.stdout.write(
+                        f"arp-scan (rc={result.returncode}): найдено {len(pairs)} записей по выводу команды."
+                    )
+                elif result.returncode != 0:
                     self.stdout.write(self.style.WARNING(
-                        f"arp-scan завершился с кодом {result.returncode}, используем ARP-таблицу."
+                        f"arp-scan завершился с кодом {result.returncode} без вывода, используем ARP-таблицу."
                     ))
             except FileNotFoundError:
                 self.stdout.write(self.style.WARNING(

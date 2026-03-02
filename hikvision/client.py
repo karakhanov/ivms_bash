@@ -19,7 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 def _get_devices_config() -> list[dict[str, str]]:
-    """Return list of device configs from Django settings (from env)."""
+    """
+    Список конфигов устройств Hikvision.
+
+    Приоритет:
+    1) settings.HIKVISION_DEVICES (JSON/список)
+    2) settings.HIKVISION_DEVICE_URL + USERNAME/PASSWORD (один девайс)
+    3) Модель Device (is_active=True, есть address), при наличии
+       HIKVISION_USERNAME / HIKVISION_PASSWORD — используем один логин/пароль
+       для всех найденных терминалов.
+    """
     from django.conf import settings
 
     devices = getattr(settings, "HIKVISION_DEVICES", None)
@@ -33,6 +42,30 @@ def _get_devices_config() -> list[dict[str, str]]:
     password = getattr(settings, "HIKVISION_PASSWORD", "") or ""
     if base_url and username:
         return [{"base_url": base_url.rstrip("/"), "username": username, "password": password}]
+
+    # Если в настройках явных устройств нет, пробуем взять активные терминалы из БД.
+    if username and password:
+        try:
+            from attendance.models import Device
+
+            qs = Device.objects.filter(is_active=True).exclude(address__isnull=True).exclude(address="")
+            configs: list[dict[str, str]] = []
+            for dev in qs:
+                addr = str(dev.address).strip()
+                if not addr:
+                    continue
+                # Допускаем, что в address может быть уже URL; если нет схемы — добавляем http://
+                if addr.startswith("http://") or addr.startswith("https://"):
+                    base = addr.rstrip("/")
+                else:
+                    base = f"http://{addr}".rstrip("/")
+                configs.append({"base_url": base, "username": username, "password": password})
+            if configs:
+                return configs
+        except Exception:
+            # Не ломаемся, если миграций ещё нет или нет таблицы Device.
+            logger.exception("Failed to load Device-based Hikvision configs")
+
     return []
 
 

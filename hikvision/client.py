@@ -115,6 +115,19 @@ def create_or_update_user(
         r = s.post(url, json=payload)
         if r.status_code in (200, 201):
             return True, "ok"
+        # Если пользователь с таким employeeNo уже существует,
+        # устройство возвращает employeeNoAlreadyExist. В этом случае
+        # считаем, что пользователь есть, и продолжаем (например, для обновления фото).
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        if (
+            r.status_code == 400
+            and isinstance(data, dict)
+            and data.get("subStatusCode") == "employeeNoAlreadyExist"
+        ):
+            return True, "employeeNoAlreadyExist"
         return False, f"HTTP {r.status_code}: {r.text[:200]}"
     except requests.RequestException as e:
         logger.exception("Hikvision UserInfo request failed")

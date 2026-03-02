@@ -26,7 +26,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         "is_active",
     )
 
-    @admin.display(description="Фото")
+    @admin.display(description="Фото", ordering="photo")
     def photo_thumb(self, obj):
         if not obj.photo:
             return "—"
@@ -35,6 +35,7 @@ class EmployeeAdmin(admin.ModelAdmin):
             '<img src="{}" alt="" style="max-width: 48px; max-height: 48px; object-fit: cover; border-radius: 4px;">',
             url,
         )
+
     list_filter = (
         "department_ref",
         "position_ref",

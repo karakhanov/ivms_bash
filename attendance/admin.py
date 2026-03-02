@@ -28,7 +28,7 @@ class DeviceAdmin(admin.ModelAdmin):
 class AttendanceLogAdmin(admin.ModelAdmin):
     list_display = ("photo_thumb", "employee", "device_id", "event_type", "event_time", "confidence_score")
 
-    @admin.display(description="Фото")
+    @admin.display(description="Фото", ordering="employee__photo")
     def photo_thumb(self, obj):
         return _employee_photo_thumb(obj)
 
@@ -55,7 +55,7 @@ class DailyAttendanceSummaryAdmin(admin.ModelAdmin):
         "overtime_minutes",
     )
 
-    @admin.display(description="Фото")
+    @admin.display(description="Фото", ordering="employee__photo")
     def photo_thumb(self, obj):
         return _employee_photo_thumb(obj)
 

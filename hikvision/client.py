@@ -169,10 +169,30 @@ def upload_employee_photo(
         s = _session(base_url, username, password)
         # multipart: do not set Content-Type, let requests set boundary
         s.headers.pop("Content-Type", None)
-        r = s.post(url, files=files)
-        if r.status_code in (200, 201):
-            return True, "ok"
-        return False, f"HTTP {r.status_code}: {r.text[:200]}"
+
+        # Helper to actually send multipart request
+        def _post_face() -> tuple[bool, str]:
+            r = s.post(url, files=files)
+            if r.status_code in (200, 201):
+                return True, "ok"
+            try:
+                data = r.json()
+            except ValueError:
+                data = {}
+            # Если лицо уже существует на устройстве, считаем это успехом:
+            # фото там уже есть, и терминал не даёт перезаписать тем же API.
+            if (
+                r.status_code == 400
+                and isinstance(data, dict)
+                and data.get("subStatusCode") == "deviceUserAlreadyExistFace"
+            ):
+                return True, "deviceUserAlreadyExistFace"
+            # Некоторым прошивкам не нравится meta как multipart и они ждут только faceURL.
+            # В этом случае считаем ошибкой — такие случаи обычно требуют ручной правки/обновления прошивки.
+            return False, f"HTTP {r.status_code}: {r.text[:200]}"
+
+        ok, msg = _post_face()
+        return ok, msg
     except requests.RequestException as e:
         logger.exception("Hikvision FaceDataRecord request failed")
         return False, str(e)

@@ -30,6 +30,16 @@ class Command(BaseCommand):
             help="Только сотрудники с загруженным фото.",
         )
         parser.add_argument(
+            "--external-id",
+            type=str,
+            help="Синхронизировать только одного сотрудника по external_id (ПИНФЛ).",
+        )
+        parser.add_argument(
+            "--employee-id",
+            type=int,
+            help="Синхронизировать только одного сотрудника по ID.",
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=0,
@@ -39,9 +49,15 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         only_active: bool = options["only_active"]
         only_with_photo: bool = options["only_with_photo"]
+        external_id: str | None = options.get("external_id")
+        employee_id: int | None = options.get("employee_id")
         limit: int = options["limit"]
 
         qs = Employee.objects.all().order_by("id")
+        if external_id:
+            qs = qs.filter(external_id=external_id)
+        if employee_id:
+            qs = qs.filter(pk=employee_id)
         if only_active:
             qs = qs.filter(is_active=True)
         if only_with_photo:

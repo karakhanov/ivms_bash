@@ -20,9 +20,13 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.authtoken.views import obtain_auth_token
 
+from .views import LoginAPIView, CurrentUserAPIView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("api/auth/token/", obtain_auth_token, name="api-token"),
+    path("api/auth/login/", LoginAPIView.as_view(), name="api-login"),
+    path("api/auth/me/", CurrentUserAPIView.as_view(), name="api-me"),
     path("api/", include("attendance.urls")),
     path("api/", include("employees.urls")),
 ]

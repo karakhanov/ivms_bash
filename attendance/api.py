@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from datetime import timedelta
 from typing import Any, Dict, List
 
@@ -18,8 +17,6 @@ from rest_framework.views import APIView
 from employees.models import Employee
 from .models import AttendanceLog, DailyAttendanceSummary, Device
 from .services import AttendanceCalculationService
-
-logger = logging.getLogger(__name__)
 
 
 def _get_client_ip(request) -> str | None:
@@ -93,7 +90,8 @@ def parse_hikvision_multipart(body: bytes, content_type: str) -> Dict[str, Any]:
 
 class IvmsEventSerializer(serializers.Serializer):
     external_id = serializers.CharField(max_length=64)
-    full_name = serializers.CharField(max_length=255)
+    # Имя из события может приходить пустым, поэтому разрешаем blank/optional
+    full_name = serializers.CharField(max_length=255, allow_blank=True, required=False)
     device_id = serializers.CharField(max_length=64)
     event_type = serializers.ChoiceField(
         choices=[AttendanceLog.EventType.IN, AttendanceLog.EventType.OUT]
@@ -190,18 +188,10 @@ class IvmsEventAPIView(APIView):
 
     def post(self, request, *args, **kwargs) -> Response:
         content_type = request.META.get("CONTENT_TYPE", "")
-        body_preview = (request.body[:500] if request.body else b"")[:500]
-        logger.info(
-            "ivms/events: POST content_type=%s body_len=%s body_preview=%s",
-            content_type,
-            len(request.body) if request.body else 0,
-            body_preview.decode("utf-8", errors="replace") if body_preview else "",
-        )
         if content_type.startswith("multipart/"):
             try:
                 payload = parse_hikvision_multipart(request.body, content_type)
             except ValueError as exc:
-                logger.warning("ivms/events: multipart parse failed: %s", exc)
                 return Response(
                     {"status": "ignored", "reason": str(exc)},
                     status=status.HTTP_200_OK,
@@ -211,8 +201,7 @@ class IvmsEventAPIView(APIView):
             try:
                 raw_body = request.body.decode("utf-8") if request.body else ""
                 raw_json = json.loads(raw_body or "{}")
-            except json.JSONDecodeError as e:
-                logger.warning("ivms/events: invalid json: %s", e)
+            except json.JSONDecodeError:
                 return Response(
                     {"status": "ignored", "reason": "invalid json"},
                     status=status.HTTP_200_OK,
@@ -227,11 +216,9 @@ class IvmsEventAPIView(APIView):
                 payload = _normalize_hikvision_event(raw_json)
                 serializer = IvmsEventSerializer(data=payload)
             else:
-                logger.info("ivms/events: ignored eventType=%s", event_type)
                 return Response({"status": "ignored"}, status=status.HTTP_200_OK)
 
         if not serializer.is_valid():
-            logger.warning("ivms/events: validation errors: %s", serializer.errors)
             return Response(
                 {"status": "ignored", "errors": serializer.errors},
                 status=status.HTTP_200_OK,
@@ -239,8 +226,7 @@ class IvmsEventAPIView(APIView):
 
         try:
             log = serializer.save()
-        except serializers.ValidationError as e:
-            logger.warning("ivms/events: duplicate or validation: %s", e.detail)
+        except serializers.ValidationError:
             return Response(
                 {"status": "ignored", "reason": "duplicate"},
                 status=status.HTTP_200_OK,
@@ -276,11 +262,6 @@ class IvmsEventAPIView(APIView):
             )
             device.last_seen = log.event_time
             device.save(update_fields=["last_seen"])
-
-        logger.info(
-            "ivms/events: saved log id=%s employee_id=%s event_type=%s event_time=%s",
-            log.id, log.employee_id, log.event_type, log.event_time,
-        )
         return Response(
             {
                 "id": log.id,

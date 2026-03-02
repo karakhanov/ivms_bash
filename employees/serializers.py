@@ -155,3 +155,25 @@ class EmployeeDetailSerializer(EmployeeListSerializer):
             "month_stats",
             "attendance_history",
         ]
+
+
+class EmployeeWriteSerializer(serializers.ModelSerializer):
+    """Для создания/редактирования сотрудников через API (CRUD)."""
+
+    class Meta:
+        model = Employee
+        fields = [
+            "id",
+            "external_id",
+            "first_name",
+            "last_name",
+            "middle_name",
+            "department_ref",
+            "position_ref",
+            "work_schedule_ref",
+            "pinfl",
+            "phone_number",
+            "gender",
+            "is_active",
+            "photo",
+        ]

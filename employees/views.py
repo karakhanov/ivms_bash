@@ -8,7 +8,11 @@ from attendance.models import AttendanceLog
 from hikvision.client import sync_employee_to_devices
 
 from .models import Employee
-from .serializers import EmployeeListSerializer, EmployeeDetailSerializer
+from .serializers import (
+    EmployeeListSerializer,
+    EmployeeDetailSerializer,
+    EmployeeWriteSerializer,
+)
 
 
 class EmployeePagination(PageNumberPagination):
@@ -17,7 +21,7 @@ class EmployeePagination(PageNumberPagination):
     max_page_size = 200
 
 
-class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
+class EmployeeViewSet(viewsets.ModelViewSet):
     """
     Read-only list of employees for the frontend: id, name, department, position,
     contact, last_entry (last IN event time), status.
@@ -28,6 +32,8 @@ class EmployeeViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = EmployeePagination
 
     def get_serializer_class(self):
+        if self.action in {"create", "update", "partial_update"}:
+            return EmployeeWriteSerializer
         if self.action == "retrieve":
             return EmployeeDetailSerializer
         return EmployeeListSerializer

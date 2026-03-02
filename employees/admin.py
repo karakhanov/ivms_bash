@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.utils.html import format_html
 
 from hikvision.client import sync_employee_to_devices
 
@@ -15,6 +16,7 @@ from .models import (
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     list_display = (
+        "photo_thumb",
         "external_id",
         "first_name",
         "last_name",
@@ -23,6 +25,16 @@ class EmployeeAdmin(admin.ModelAdmin):
         "work_schedule_ref",
         "is_active",
     )
+
+    @admin.display(description="Фото")
+    def photo_thumb(self, obj):
+        if not obj.photo:
+            return "—"
+        url = obj.photo.url
+        return format_html(
+            '<img src="{}" alt="" style="max-width: 48px; max-height: 48px; object-fit: cover; border-radius: 4px;">',
+            url,
+        )
     list_filter = (
         "department_ref",
         "position_ref",

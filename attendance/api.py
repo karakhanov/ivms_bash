@@ -44,7 +44,9 @@ def _normalize_hikvision_event(json_payload: Dict[str, Any]) -> Dict[str, Any]:
     if external_id is None:
         external_id = str(access_event.get("serialNo", "unknown"))
 
-    device_id = json_payload.get("ipAddress") or access_event.get("deviceName") or "unknown"
+    # IP устройства для device_id и читаемое имя для name устройства
+    device_ip = json_payload.get("ipAddress") or "unknown"
+    device_label = access_event.get("deviceName") or device_ip
     event_time = json_payload.get("dateTime")
 
     attendance_status = access_event.get("attendanceStatus")
@@ -60,7 +62,8 @@ def _normalize_hikvision_event(json_payload: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "external_id": str(external_id),
         "full_name": full_name,
-        "device_id": device_id,
+        "device_id": device_ip,
+        "device_label": device_label,
         "event_type": event_type,
         "event_time": event_time,
         "confidence_score": 1.0,
@@ -93,6 +96,8 @@ class IvmsEventSerializer(serializers.Serializer):
     # Имя из события может приходить пустым, поэтому разрешаем blank/optional
     full_name = serializers.CharField(max_length=255, allow_blank=True, required=False)
     device_id = serializers.CharField(max_length=64)
+    # Читаемое имя устройства из события (deviceName), опционально
+    device_label = serializers.CharField(max_length=128, allow_blank=True, required=False)
     event_type = serializers.ChoiceField(
         choices=[AttendanceLog.EventType.IN, AttendanceLog.EventType.OUT]
     )
@@ -139,6 +144,8 @@ class IvmsEventSerializer(serializers.Serializer):
     def create(self, validated_data: Dict[str, Any]) -> AttendanceLog:
         external_id = validated_data.pop("external_id")
         full_name = validated_data.pop("full_name")
+        # device_label нам нужен только для создания/обновления Device, в самом логе не храним
+        validated_data.pop("device_label", None)
 
         # Roughly split full name into last / first / middle
         name_parts = full_name.split()
@@ -223,6 +230,7 @@ class IvmsEventAPIView(APIView):
                 status=status.HTTP_200_OK,
             )
 
+        # Сохраняем лог события
         try:
             log = serializer.save()
         except serializers.ValidationError:
@@ -230,6 +238,9 @@ class IvmsEventAPIView(APIView):
                 {"status": "ignored", "reason": "duplicate"},
                 status=status.HTTP_200_OK,
             )
+
+        # Имя устройства из события (deviceName), если есть
+        device_label = serializer.validated_data.get("device_label") or ""
 
         # IP устройства берём из запроса (реальный IP терминала), не из тела события — там бывает неверно
         client_ip = _get_client_ip(request)
@@ -252,11 +263,11 @@ class IvmsEventAPIView(APIView):
                 device.save(update_fields=["address", "last_seen"])
         else:
             # Новое устройство — создаём с IP из запроса,
-            # а в поле "Название" кладём исходный идентификатор из события (log.device_id).
+            # в поле "Название" кладём deviceName из события (если есть).
             device, _ = Device.objects.get_or_create(
                 device_id=device_id_for_record,
                 defaults={
-                    "name": log.device_id or device_id_for_record,
+                    "name": device_label or device_id_for_record,
                     "address": device_id_for_record,
                     "is_active": True,
                 },

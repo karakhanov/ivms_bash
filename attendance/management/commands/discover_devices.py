@@ -130,13 +130,23 @@ class Command(BaseCommand):
 
         updated = 0
         for ip, mac in filtered_pairs:
-            # Обновляем по address или device_id (часто это IP из событий)
+            # Сначала ищем устройство по MAC — это устойчивый идентификатор,
+            # даже если IP меняется (динамический адрес по DHCP).
+            dev = Device.objects.filter(mac_address__iexact=mac).first()
+            if dev:
+                dev.address = ip
+                dev.device_id = ip
+                dev.save(update_fields=["address", "device_id"])
+                updated += 1
+                continue
+
+            # Если MAC ещё не знаем, пробуем найти по текущему IP (address или device_id)
             qs = Device.objects.filter(Q(address=ip) | Q(device_id=ip))
             if qs.exists():
                 qs.update(mac_address=mac, address=ip)
                 updated += 1
             else:
-                # Можно авто-создать запись по IP/MAC (device_id = IP)
+                # Авто-создаём запись по IP/MAC (device_id = IP)
                 Device.objects.get_or_create(
                     device_id=ip,
                     defaults={"name": ip, "address": ip, "mac_address": mac, "is_active": True},

@@ -189,3 +189,7 @@ class EmployeeWriteSerializer(serializers.ModelSerializer):
             "is_active",
             "photo",
         ]
+        extra_kwargs = {
+            # Отключаем встроенный UniqueValidator, используем собственное сообщение.
+            "external_id": {"validators": ['Бу ходим мавжуд']},
+        }

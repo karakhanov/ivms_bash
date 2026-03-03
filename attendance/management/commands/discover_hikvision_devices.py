@@ -1,8 +1,6 @@
-from __future__ import annotations
-
 import ipaddress
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import requests
 import urllib3
@@ -128,7 +126,7 @@ class Command(BaseCommand):
     @staticmethod
     def _probe_device(
         ip: str, username: str, password: str, timeout: float
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> Tuple[Optional[str], Optional[str]]:
         """
         Try to query /ISAPI/System/deviceInfo on the given IP.
         Returns (mac_address, device_name) if this looks like a Hikvision device,

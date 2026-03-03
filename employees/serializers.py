@@ -169,7 +169,7 @@ class EmployeeWriteSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
-            raise serializers.ValidationError("Сотрудник с таким external_id уже существует.")
+            raise serializers.ValidationError("Бу ходим мавжуд")
         return value
 
     class Meta:

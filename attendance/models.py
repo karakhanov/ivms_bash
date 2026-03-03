@@ -1,9 +1,10 @@
 from django.db import models
 
+from core.models import BaseModel
 from employees.models import Employee
 
 
-class Device(models.Model):
+class Device(BaseModel):
     """
     Терминал/устройство контроля доступа (например Hikvision).
     device_id совпадает с тем, что приходит в событиях (AttendanceLog.device_id).
@@ -37,8 +38,6 @@ class Device(models.Model):
     is_active = models.BooleanField("Активно", default=True)
     last_seen = models.DateTimeField("Последнее событие", null=True, blank=True)
     notes = models.TextField("Примечание", blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name = "Устройство"
@@ -49,7 +48,7 @@ class Device(models.Model):
         return f"{self.name} ({self.device_id})"
 
 
-class AttendanceLog(models.Model):
+class AttendanceLog(BaseModel):
     class EventType(models.TextChoices):
         IN = "IN", "IN"
         OUT = "OUT", "OUT"
@@ -59,7 +58,6 @@ class AttendanceLog(models.Model):
     event_type = models.CharField(max_length=3, choices=EventType.choices)
     event_time = models.DateTimeField(db_index=True)
     confidence_score = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [
@@ -71,7 +69,7 @@ class AttendanceLog(models.Model):
         return f"{self.employee} {self.event_type} @ {self.event_time.isoformat()}"
 
 
-class DailyAttendanceSummary(models.Model):
+class DailyAttendanceSummary(BaseModel):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name="daily_summaries")
     date = models.DateField()
     first_entry = models.DateTimeField(null=True, blank=True)

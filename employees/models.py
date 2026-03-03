@@ -1,7 +1,9 @@
 from django.db import models
 
+from core.models import BaseModel
 
-class Department(models.Model):
+
+class Department(BaseModel):
     """
     Справочник подразделений.
     """
@@ -9,7 +11,6 @@ class Department(models.Model):
     name = models.CharField(max_length=128, unique=True)
     code = models.CharField(max_length=32, unique=True)
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["name"]
@@ -18,7 +19,7 @@ class Department(models.Model):
         return self.name
 
 
-class Position(models.Model):
+class Position(BaseModel):
     """
     Справочник должностей.
     """
@@ -42,7 +43,7 @@ class Position(models.Model):
         return self.name
 
 
-class WorkSchedule(models.Model):
+class WorkSchedule(BaseModel):
     """
     Справочник графиков работы (смен).
     """
@@ -62,7 +63,7 @@ class WorkSchedule(models.Model):
         return self.name
 
 
-class EmployeeStatus(models.Model):
+class EmployeeStatus(BaseModel):
     """
     Справочник статусов сотрудника (Активен, В отпуске, Уволен и т.д.).
     """
@@ -78,7 +79,7 @@ class EmployeeStatus(models.Model):
         return self.name
 
 
-class EmployeeRole(models.Model):
+class EmployeeRole(BaseModel):
     """
     Справочник ролей (например: Сотрудник, Руководитель, Администратор).
     """
@@ -94,7 +95,7 @@ class EmployeeRole(models.Model):
         return self.name
 
 
-class Employee(models.Model):
+class Employee(BaseModel):
     class Gender(models.TextChoices):
         MALE = "male", "Мужской"
         FEMALE = "female", "Женский"

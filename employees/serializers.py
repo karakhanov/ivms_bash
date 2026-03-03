@@ -160,6 +160,18 @@ class EmployeeDetailSerializer(EmployeeListSerializer):
 class EmployeeWriteSerializer(serializers.ModelSerializer):
     """Для создания/редактирования сотрудников через API (CRUD)."""
 
+    def validate_external_id(self, value: str) -> str:
+        """
+        ПИНФЛ / внешний ID должен быть уникальным для сотрудника.
+        Даём понятную ошибку вместо низкоуровневой ошибки БД.
+        """
+        qs = Employee.objects.filter(external_id=value)
+        if self.instance is not None:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("Сотрудник с таким external_id уже существует.")
+        return value
+
     class Meta:
         model = Employee
         fields = [

@@ -50,9 +50,21 @@ def _make_access_event_payload(
 
 
 @pytest.mark.django_db
-def test_ivms_access_controller_event_creates_employee_log_and_summary():
+def test_ivms_access_controller_event_creates_log_for_existing_employee():
+    """
+    If employee with given external_id already exists, webhook must create
+    AttendanceLog and DailyAttendanceSummary, but must NOT auto-create employees.
+    """
     client = APIClient()
     url = reverse("ivms-events")
+
+    # Employee must be pre-created (no auto-creation from webhook)
+    employee = Employee.objects.create(
+        external_id="EXT-1",
+        first_name="Existing",
+        last_name="Employee",
+        is_active=True,
+    )
 
     payload = _make_access_event_payload(
         external_id="EXT-1",
@@ -67,10 +79,12 @@ def test_ivms_access_controller_event_creates_employee_log_and_summary():
     data = response.data
     assert "id" in data
     assert data["event_type"] == "IN"
+    assert data["employee_id"] == employee.id
 
-    employee = Employee.objects.get(external_id="EXT-1")
-    assert employee.first_name == "User"
-    assert employee.last_name == "Webhook"
+    # Employee name must not be overwritten from webhook payload
+    employee.refresh_from_db()
+    assert employee.first_name == "Existing"
+    assert employee.last_name == "Employee"
 
     log = AttendanceLog.objects.get(employee=employee)
     assert log.device_id == payload["ipAddress"]
@@ -103,6 +117,30 @@ def test_ivms_duplicate_event_is_ignored_with_200():
     assert second_response.data.get("status") == "ignored"
     assert second_response.data.get("reason") == "duplicate"
     assert AttendanceLog.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_ivms_event_with_unknown_employee_is_ignored():
+    """
+    If there is no employee with given external_id, webhook must ignore the event
+    (no log created, status 200 with status='ignored').
+    """
+    client = APIClient()
+    url = reverse("ivms-events")
+
+    payload = _make_access_event_payload(
+        external_id="NON-EXISTENT",
+        full_name="Unknown User",
+        attendance_status="checkIn",
+        event_time="2026-02-23T09:00:00+00:00",
+    )
+
+    response = client.post(url, data=payload, format="json")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data.get("status") == "ignored"
+    # No logs should be created
+    assert AttendanceLog.objects.count() == 0
 
 
 @pytest.mark.django_db

@@ -8,6 +8,7 @@ from attendance.models import AttendanceLog
 from hikvision.client import sync_employee_to_devices
 
 from .models import Employee
+from .permissions import EmployeePermission
 from .serializers import (
     EmployeeListSerializer,
     EmployeeDetailSerializer,
@@ -30,6 +31,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
     serializer_class = EmployeeListSerializer
     pagination_class = EmployeePagination
+    permission_classes = [EmployeePermission]
 
     def get_serializer_class(self):
         if self.action in {"create", "update", "partial_update"}:

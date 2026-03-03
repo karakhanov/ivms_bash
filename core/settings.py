@@ -24,7 +24,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-5i$!l$^ni4q_gy*-k&4^c+3jl6(82_^wttbea__299dlztopq)'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "95.46.96.135",
@@ -35,6 +35,12 @@ ALLOWED_HOSTS = [
     "144.124.193.167",
     "bashkentadmin.uz",
     "www.bashkentadmin.uz",
+    "bashkentadmin.uz",
+    "192.168.68.119",
+    # Добавьте ваш домен, например:
+    # "api.ваш-домен.ru",
+    # ".ваш-домен.ru",  # точка в начале = все поддомены
+
 ]
 
 # Иначе админка за Nginx/HTTPS даёт 403 CSRF verification failed
@@ -107,9 +113,9 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'postgres'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+        'NAME': os.getenv('DB_NAME', 'bashkent'),
+        'USER': os.getenv('DB_USER', 'bashkent'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'bashkent'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
         'OPTIONS': {
@@ -153,6 +159,7 @@ USE_I18N = True
 USE_TZ = True
 
 
+
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
 
@@ -171,12 +178,19 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://bashkentadmin.uz",
+    "https://www.bashkentadmin.uz",
+    "http://bashkentadmin.uz",
+    "http://www.bashkentadmin.uz",
+]
 # Если фронт на другом домене — добавь его сюда или задай CORS_ALLOWED_ORIGINS через env
 
 # Hikvision: push employee to terminal(s). Single device from env or HIKVISION_DEVICES JSON list.
 HIKVISION_DEVICE_URL = os.getenv("HIKVISION_DEVICE_URL", "")
-HIKVISION_USERNAME = os.getenv("HIKVISION_USERNAME", "")
-HIKVISION_PASSWORD = os.getenv("HIKVISION_PASSWORD", "")
+HIKVISION_USERNAME = os.getenv("HIKVISION_USERNAME", "admin")
+HIKVISION_PASSWORD = os.getenv("HIKVISION_PASSWORD", "Gold1118")
 # Optional: HIKVISION_DEVICES env = JSON array [{"base_url": "http://...", "username": "...", "password": "..."}]
 if os.getenv("HIKVISION_DEVICES"):
     import json as _json

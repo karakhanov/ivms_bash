@@ -31,9 +31,18 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
     "192.168.1.176",
+    "192.168.68.119",  # сервер в LAN, сюда шлют события терминалы
     "144.124.193.167",
     "bashkentadmin.uz",
     "www.bashkentadmin.uz",
+]
+
+# Иначе админка за Nginx/HTTPS даёт 403 CSRF verification failed
+CSRF_TRUSTED_ORIGINS = [
+    "https://bashkentadmin.uz",
+    "https://www.bashkentadmin.uz",
+    "http://bashkentadmin.uz",
+    "http://www.bashkentadmin.uz",
 ]
 
 # Application definition

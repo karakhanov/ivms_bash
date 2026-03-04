@@ -187,6 +187,11 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 # Если фронт на другом домене — добавь его сюда или задай CORS_ALLOWED_ORIGINS через env
 
+
+DISCOVER_DEVICE_MAC_PREFIXES = [
+    "88:de:39",  # 1-й терминал
+    "88:de:39",  # 2-й терминал
+]
 # Hikvision: push employee to terminal(s). Single device from env or HIKVISION_DEVICES JSON list.
 HIKVISION_DEVICE_URL = os.getenv("HIKVISION_DEVICE_URL", "")
 HIKVISION_USERNAME = os.getenv("HIKVISION_USERNAME", "admin")

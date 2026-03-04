@@ -12,6 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from django.conf import settings
 from django.db.models import Q
 from django.core.management.base import BaseCommand
 
@@ -114,12 +115,44 @@ class Command(BaseCommand):
             self.stdout.write(f"ARP-таблица: найдено {len(pairs)} записей.")
 
         if not pairs:
-            self.stdout.write(self.style.WARNING("Нет данных об устройствах. Запустите на хосте в той же подсети."))
+            self.stdout.write(
+                self.style.WARNING(
+                    "Нет данных об устройствах. Запустите на хосте в той же подсети."
+                )
+            )
             return
 
-        # Раньше здесь фильтровали только Hikvision по MAC-префиксу 88:de:39.
-        # Теперь обрабатываем все IP/MAC из ARP/arp-scan, чтобы находить устройства с любыми MAC.
-        filtered_pairs = pairs
+        # Фильтрация только по MAC-адресам:
+        # по умолчанию используем старое поведение (только Hikvision 88:de:39),
+        # но даём возможность переопределить список префиксов через settings.DISCOVER_DEVICE_MAC_PREFIXES.
+        default_prefixes = ("88:de:39", "88:DE:39")
+        allowed_prefixes = getattr(
+            settings, "DISCOVER_DEVICE_MAC_PREFIXES", default_prefixes
+        )
+        # Если в настройках явно указано пустое значение ([], ()), то не фильтруем по префиксам вообще.
+        if allowed_prefixes:
+            prefixes_lower = tuple(p.lower() for p in allowed_prefixes)
+            filtered_pairs = [
+                (ip, mac)
+                for ip, mac in pairs
+                if mac.lower().startswith(prefixes_lower)
+            ]
+            skipped = len(pairs) - len(filtered_pairs)
+            if skipped:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Пропущено устройств с MAC не из списка {allowed_prefixes}: {skipped}"
+                    )
+                )
+            if not filtered_pairs:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Не найдено устройств с MAC, начинающимся на один из {allowed_prefixes}."
+                    )
+                )
+                return
+        else:
+            filtered_pairs = pairs
 
         updated = 0
         for ip, mac in filtered_pairs:

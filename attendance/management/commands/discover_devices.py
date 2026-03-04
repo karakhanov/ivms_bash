@@ -117,16 +117,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("Нет данных об устройствах. Запустите на хосте в той же подсети."))
             return
 
-        # Фильтруем только наши терминалы Hikvision: MAC начинается с 88:de:39
-        HIK_MAC_PREFIXES = ("88:de:39", "88:DE:39")
-        filtered_pairs = [(ip, mac) for ip, mac in pairs if mac.startswith(HIK_MAC_PREFIXES)]
-        skipped = len(pairs) - len(filtered_pairs)
-        if skipped:
-            self.stdout.write(self.style.WARNING(f"Пропущено не-Hikvision устройств (MAC != 88:de:39*): {skipped}"))
-
-        if not filtered_pairs:
-            self.stdout.write(self.style.WARNING("Не найдено устройств с MAC, начинающимся на 88:de:39."))
-            return
+        # Раньше здесь фильтровали только Hikvision по MAC-префиксу 88:de:39.
+        # Теперь обрабатываем все IP/MAC из ARP/arp-scan, чтобы находить устройства с любыми MAC.
+        filtered_pairs = pairs
 
         updated = 0
         for ip, mac in filtered_pairs:

@@ -24,6 +24,8 @@ class EmployeeAdmin(admin.ModelAdmin):
         "position_ref",
         "work_schedule_ref",
         "is_active",
+        "created_at",
+        "updated_at",
     )
 
     @admin.display(description="Фото", ordering="photo")
@@ -45,6 +47,8 @@ class EmployeeAdmin(admin.ModelAdmin):
     )
     search_fields = ("external_id", "first_name", "last_name")
     actions = ["sync_selected_to_devices"]
+
+    readonly_fields = ("created_at", "updated_at")
 
     # старые текстовые поля не показываем в форме
     exclude = ("department", "position", "type_of_work")

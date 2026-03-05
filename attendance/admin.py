@@ -17,7 +17,17 @@ def _employee_photo_thumb(obj):
 
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
-    list_display = ("name", "device_id", "address", "mac_address", "direction", "is_active", "last_seen")
+    list_display = (
+        "name",
+        "device_id",
+        "address",
+        "mac_address",
+        "direction",
+        "is_active",
+        "last_seen",
+        "created_at",
+        "updated_at",
+    )
     list_editable = ("address",)  # быстрая правка реального IP в списке
     list_filter = ("direction", "is_active")
     search_fields = ("name", "device_id", "address", "mac_address")
